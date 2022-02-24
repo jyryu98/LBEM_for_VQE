@@ -160,7 +160,6 @@ def get_ansatz(n,m,ansatz = 'simple'):
     return qc, num_par_gate
 
 
-
 def A_gate(qc, qubit1 , qubit2, theta):
     qc.cx(qubit2,qubit1)
     qc.ry(theta + math.pi/2,qubit2)
@@ -197,7 +196,6 @@ def main():
     group_pauli_op = grouping(optimized,qubit_ham)
     ansatz, num_par_gates = get_ansatz(6,2,'num_particle_preserving')
 
-    print(len(group_pauli_op))
 
 
     return group_pauli_op, [ansatz,num_par_gates]

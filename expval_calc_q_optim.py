@@ -1,5 +1,6 @@
 import qiskit
 import numpy as np
+from generate_training_set import insert_pauli
 from qiskit import QuantumCircuit
 from random import sample
 from itertools import product
@@ -134,7 +135,7 @@ def expval_calc(hamiltonian: list, circuits_to_run, em_instance: qiskit.utils.Qu
         batch_only_circuits = [i[1] for i in batch]
         res = em_instance.execute(batch_only_circuits)
         counts = res.get_counts()
-        for i in range(batchsize):
+        for i in range(len(batch)):
             tot_em_counts.append((batch[i][0], counts[i]))
     
     # Calculate the noisy results and save to com_em
@@ -233,12 +234,21 @@ def truncate_training_set(num_param_gates, num_trunc_P, num_trunc_T):
     paulis = ['I', 'X', 'Y', 'Z']
     cliffords = ['I','X','Y','Z','S','XS','YS','ZS','H','XH','YH','ZH','SH','XSH','YSH','ZSH','HS','XHS','YHS','ZHS','SHS','XSHS','YSHS','ZSHS']
 
-    total_paulis = list(product(paulis, repeat = num_param_gates))
-    total_paulis = [''.join(list(i)) for i in total_paulis]
-    total_cliffords = list(product(cliffords, repeat = num_param_gates))
-    total_cliffords = [list(i) for i in total_cliffords]
+    trunc_T = []
+    while len(trunc_T) < num_trunc_T:
+        temp = []
+        for j in range(num_param_gates):
+            temp.append(sample(cliffords, 1)[0])
+        if not temp in trunc_T:
+            trunc_T.append(temp)
 
-    trunc_P = sample(total_paulis, num_trunc_P)
-    trunc_T = sample(total_cliffords, 3*num_trunc_T)
+    trunc_P = []
+    while len(trunc_P) < num_trunc_P:
+        temp = []
+        for j in range(num_param_gates):
+            temp.append(sample(paulis, 1)[0])
+        temp = ''.join(temp)
+        if not temp in trunc_P:
+            trunc_P.append(temp)
 
     return trunc_T, trunc_P
