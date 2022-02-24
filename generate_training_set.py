@@ -1,6 +1,6 @@
 from qiskit import *
 
-clifford_list = ['I','X','Y','Z','S','XS','YS','ZS','H','XH','YH','ZH','SH','XSH','YSH','ZSH','HS','XHS','YHS','ZHS','SHS','XSHS','YSHS','ZSHS']
+default_clifford_list = ['I','X','Y','Z','S','XS','YS','ZS','H','XH','YH','ZH','SH','XSH','YSH','ZSH','HS','XHS','YHS','ZHS','SHS','XSHS','YSHS','ZSHS']
 pauli_list = ['I','X','Y','Z']
 
 def create_clifford(str):
@@ -42,9 +42,10 @@ def get_pauli_comb(n):
 
     return pauli_comb_list    
 
-def get_circuits_dict(qc):
+def get_circuits_dict(qc, clifford_list=default_clifford_list, pauli_comb_list=[]):
     circuits_list = []
-    pauli_comb_list = get_pauli_comb(qc.num_parameters)
+    if not pauli_comb_list:
+        pauli_comb_list = get_pauli_comb(qc.num_parameters)
 
     for args in clifford_list:
         ef_em_dict = {}
