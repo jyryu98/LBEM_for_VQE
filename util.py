@@ -182,7 +182,7 @@ def n_qubit_A_circuit(n,m, repeat = 1):
                 A_gate(qc,i,j,theta[index])
                 index += 1
     
-    return qc, index
+    return qc, index*2
         
 
 
