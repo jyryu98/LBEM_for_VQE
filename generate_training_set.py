@@ -42,10 +42,12 @@ def get_pauli_comb(n):
 
     return pauli_comb_list    
 
-def get_circuits_dict(qc, clifford_list=default_clifford_list, pauli_comb_list=[]):
+def get_circuits_dict(qc, clifford_list=default_clifford_list, pauli_comb_list=[], num_parameterized_gates=-1):
     circuits_list = []
     if not pauli_comb_list:
-        pauli_comb_list = get_pauli_comb(qc.num_parameters)
+        if num_parameterized_gates == -1:
+            num_parameterized_gates = qc.num_parameters
+        pauli_comb_list = get_pauli_comb(num_parameterized_gates)
 
     for args in clifford_list:
         ef_em_dict = {}
