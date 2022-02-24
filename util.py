@@ -160,17 +160,6 @@ def get_ansatz(n,m,ansatz = 'simple'):
     return qc, num_par_gate
 
 
-def get_measuring_circuit(basis: str) -> QuantumCircuit:
-    qc = QuantumCircuit(len(basis))
-    for i,term in enumerate(basis):
-        if term == 'X':
-            qc.h(i)
-        elif term == 'Y':
-            qc.rx(math.pi/2,i)
-        else:
-            continue
-    return qc
-
 
 def A_gate(qc, qubit1 , qubit2, theta):
     qc.cx(qubit2,qubit1)
