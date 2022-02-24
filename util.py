@@ -1,6 +1,7 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+from pyrsistent import m
 import qiskit
 import math
 
@@ -27,25 +28,29 @@ from qiskit import IBMQ, BasicAer, Aer
 from qiskit import QuantumCircuit
 from qiskit.circuit import QuantumCircuit, Parameter
 
+from qiskit.circuit import ParameterVector, QuantumCircuit
 
 
 
-def calculate_pauli_hamiltonian(molecule_name, distance ,mapping_type = 'parity'):
+def calculate_pauli_hamiltonian(molecule_name, distance ,map_type = 'parity'):
   
     if molecule_name =='H2':
         freeze_list = []
         remove_list = []
         molecular_coordinates = "H 0 0 0; H 0 0 " + str(distance)
+    elif molecule_name == 'LiH':
+        freeze_list = [0,6]
+        remove_list = [4,8]
+        molecular_coordinates = "Li 0 0 0; H 0 0 " + str(distance)
     else:
         raise NotImplementedError
 
 
     driver = PySCFDriver(molecular_coordinates, unit=UnitsType.ANGSTROM,charge=0,spin=0,basis='sto3g')
     molecule = driver.run()
-
     ferOp = FermionicOperator(h1=molecule.one_body_integrals, h2=molecule.two_body_integrals)
 
-    ## dermine freezed and removed orbitals, and number of oribials and particles
+    ##  number of oribials and particles
     num_spin_orbitals = molecule.num_orbitals * 2
     num_particles = molecule.num_alpha + molecule.num_beta
     nuclear_repulsion_energy = molecule.nuclear_repulsion_energy
@@ -69,8 +74,6 @@ def calculate_pauli_hamiltonian(molecule_name, distance ,mapping_type = 'parity'
     num_spin_orbitals -= len(remove_list)
 
     ### get  the qubit hamiltonian
-    map_type = 'parity'#'jordan_wigner'
-    
     qubitOp = ferOp_fr.mapping(map_type=map_type)
 
     ### reduce number of qubits through z2 symmetries
@@ -79,17 +82,17 @@ def calculate_pauli_hamiltonian(molecule_name, distance ,mapping_type = 'parity'
     else:
         qubitOp_t = qubitOp
     
+    ## process the qubit operator ############
     qubit_ham = []
-
     for coeff,pauli in qubitOp_t.__dict__['_paulis']:
-        print(pauli)
         if all([p == "I" for p in pauli.to_label()]):
             identity_coeff = coeff
             continue
         qubit_ham.append((coeff,pauli.to_label()))
 
-    return qubit_ham, nuclear_repulsion_energy + energy_shift, num_particles,num_spin_orbitals,molecule.hf_energy, identity_coeff
+    result = {'qubit_operator': qubit_ham,'coeff_identity_pauli': identity_coeff , 'shift':nuclear_repulsion_energy + energy_shift,'num_particles': num_particles,'num_spin_orbitals':num_spin_orbitals }
 
+    return result
 
 
 def check_simplification(op1, op2):
@@ -181,7 +184,7 @@ def grouping(final_solution, obs_hamiltonian ):
     return grouped_list
 
 
-def get_ansatz(n,ansatz = 'simple'):
+def get_ansatz(n,m,ansatz = 'simple'):
     ## trivial circuit for H2 check might not work properly
     phi = Parameter('phi')
     qc = QuantumCircuit(n)
@@ -190,6 +193,8 @@ def get_ansatz(n,ansatz = 'simple'):
         qc.cx(0,1)
         qc.rx(phi,0)
         qc.cx(1,0)
+    elif ansatz == 'num_particle_preserving':
+        qc = n_qubit_A_circuit(n,m)
     else:
         raise NotImplementedError
     return qc
@@ -207,15 +212,54 @@ def get_measuring_circuit(basis: str) -> QuantumCircuit:
     return qc
 
 
+def A_gate(qc, qubit1 , qubit2, theta):
+    qc.cx(qubit2,qubit1)
+    qc.ry(theta + math.pi/2,qubit2)
+    qc.rz(math.pi,qubit2)
+    qc.cx(qubit1,qubit2)
+    qc.ry(theta + math.pi/2,qubit2)
+    qc.rz(math.pi,qubit2)
+    qc.cx(qubit2,qubit1)
+
+def n_qubit_A_circuit(n,m, repeat = 1):
+    qc = QuantumCircuit(n)
+    index = 0
+    theta  = ParameterVector('theta', repeat*(n-m)*m)
+    ## primitive pattern
+    for _ in range(repeat): 
+        for i in range(m):
+            qc.x(i)
+            for j in range(m,n):
+                A_gate(qc,i,j,theta[index])
+                index += 1
+    
+    return qc
+        
+
+
+
+
 def main():
     
-    molecule_name = 'H2'
-    distance = 0.774
-    qubit_ham, shift, num_particles,num_spin_orbitals, hf_energy, identity_coeff= calculate_pauli_hamiltonian(molecule_name, distance)
+    molecule_name = 'LiH'
+    distance = 1.4
+    qubit_ham = calculate_pauli_hamiltonian(molecule_name, distance)['qubit_operator']
     optimized = optimize_measurements( [list(term[1]) for term in qubit_ham] )
-
     group_pauli_op = grouping(optimized,qubit_ham)
+    ansatz = get_ansatz(6,2,'num_particle_preserving')
 
-    ansatz = get_ansatz(2)
+
+    ####### LBEM method ##########################
+
+
+
+
+    ##########################################
+
+
+
+    print(len(group_pauli_op))
 
     return group_pauli_op, ansatz
+
+
