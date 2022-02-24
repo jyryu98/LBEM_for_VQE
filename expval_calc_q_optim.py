@@ -1,6 +1,8 @@
 import qiskit
 import numpy as np
 from qiskit import QuantumCircuit
+from random import sample
+from itertools import product
 
 def get_measuring_circuit(basis_list: list) -> QuantumCircuit:
     qc = QuantumCircuit(len(basis_list[0][1]))
@@ -226,3 +228,17 @@ def test(ansatz, angles, hamiltonian, q, ef_instance, em_instance):
 
     em_expval += q[0][-1]
     return ef_expval, em_expval, n_expval
+
+def truncate_training_set(num_param_gates, num_trunc_P, num_trunc_T):
+    paulis = ['I', 'X', 'Y', 'Z']
+    cliffords = ['I','X','Y','Z','S','XS','YS','ZS','H','XH','YH','ZH','SH','XSH','YSH','ZSH','HS','XHS','YHS','ZHS','SHS','XSHS','YSHS','ZSHS']
+
+    total_paulis = list(product(paulis, repeat = num_param_gates))
+    total_paulis = [''.join(list(i)) for i in total_paulis]
+    total_cliffords = list(product(cliffords, repeat = num_param_gates))
+    total_cliffords = [list(i) for i in total_cliffords]
+
+    trunc_P = sample(total_paulis, num_trunc_P)
+    trunc_T = sample(total_cliffords, 3*num_trunc_T)
+
+    return trunc_T, trunc_P
