@@ -91,41 +91,16 @@ def calculate_pauli_hamiltonian(molecule_name, distance ,map_type = 'parity'):
 
 
 def check_simplification(op1, op2):
-    """As we have seen in the problem statement, given two Pauli operators, you could obtain the expected value
-    of each of them by running a single circuit following the two defined rules. This function will determine whether,
-    given two Pauli operators, such a simplification can be produced.
 
-    Args:
-        - op1 (list(str)): First Pauli word (list of Pauli operators), e.g., ["Y", "I", "Z", "I"].
-        - op2 (list(str)): Second Pauli word (list of Pauli operators), e.g., ["Y", "I", "X", "I"].
-
-    Returns:
-        - (bool): 'True' if we can simplify them, 'False' otherwise. For the example args above, the third qubit does not allow simplification, so the function would return `False`.
-    """
-
-    # QHACK
     for i in range(len(op1)):
         if ( op1[i]!= op2[i] ) and  "I"  not in [ op1[i], op2[i]] :
             return False
     return True
-    # QHACK
 
 
 
 def join_operators(op1, op2):
-    """This function will receive two operators that we know can be simplified
-    and returns the operator corresponding to the union of the two previous ones.
 
-    Args:
-        - op1 (list(str)): First Pauli word (list of Pauli operators), e.g., ["Y", "I", "Z", "I"].
-        - op2 (list(str)): Second Pauli word (list of Pauli operators), e.g., ["Y", "X", "I", "I"].
-
-    Returns:
-        - (list(str)): Pauli operator corresponding to the union of op1 and op2.
-        For the case above the output would be ["Y", "X", "Z", "I"]
-    """
-
-    # QHACK
     assert(check_simplification(op1,op2))
     joined_op = []
     for i in range(len(op1)):
@@ -137,20 +112,10 @@ def join_operators(op1, op2):
     return joined_op
 
 
-    # QHACK
 
 
 def optimize_measurements(obs_hamiltonian):
-    """This function will go through the list of Pauli words provided in the statement, grouping the operators
-    following the simplification process of the previous functions.
 
-    Args:
-        - obs_hamiltonian (list(list(str))): Groups of Pauli words making up the Hamiltonian.
-
-    Returns:
-        - (list(list(str))): The chosen Pauli operators to measure after grouping.
-    """
-    
     final_solution = []
     grouped_dic = {}
     for op1 in obs_hamiltonian:
@@ -168,7 +133,6 @@ def optimize_measurements(obs_hamiltonian):
 
 def grouping(final_solution, obs_hamiltonian ):
     
-    print(final_solution)
     grouped_list = []
     for i,meas_op in enumerate(final_solution):
         temp = []
@@ -226,6 +190,7 @@ def main():
     distance = 1.4
     qubit_ham = calculate_pauli_hamiltonian(molecule_name, distance)['qubit_operator']
     optimized = optimize_measurements( [list(term[1]) for term in qubit_ham] )
+    
     group_pauli_op = grouping(optimized,qubit_ham)
     ansatz = get_ansatz(6,2,'num_particle_preserving')
 
