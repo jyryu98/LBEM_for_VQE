@@ -42,11 +42,25 @@ def get_pauli_comb(n):
 
     return pauli_comb_list    
 
-def get_circuits_dict(qc, clifford_list=default_clifford_list, pauli_comb_list=[], num_parameterized_gates=-1):
+def get_clifford_combo(n):
+    clifford_combo_list = default_clifford_list.copy()
+    
+    for _ in range(n-1):
+        clifford_combo_list = [[clifford1, clifford2] for clifford1 in clifford_combo_list for clifford2 in default_clifford_list]
+    
+    return clifford_combo_list
+
+# e.g.) circuit_list = get_circuits_dict(qc, [['X','Y','X'],['X','Y','Z'],['I','X','X']], ['XXX','YYY'], 3)
+def get_circuits_dict(qc, clifford_list=[], pauli_comb_list=[], num_parameterized_gates=-1):
     circuits_list = []
+    
+    if num_parameterized_gates == -1:
+        num_parameterized_gates = qc.num_parameters
+
+    if not clifford_list:
+        clifford_list = get_clifford_combo(num_parameterized_gates)
+
     if not pauli_comb_list:
-        if num_parameterized_gates == -1:
-            num_parameterized_gates = qc.num_parameters
         pauli_comb_list = get_pauli_comb(num_parameterized_gates)
 
     for args in clifford_list:
@@ -61,20 +75,21 @@ def get_circuits_dict(qc, clifford_list=default_clifford_list, pauli_comb_list=[
         circuits_list.append(ef_em_dict)
  
     pauli_idx = 0
+    clifford_idx = 0
     for args in qc.data:
         if args[0].is_parameterized():
             qubit_idx = args[1][0].index
-            for idx_c, gate_c in enumerate(clifford_list):
+            for idx_c, clifford_comb in enumerate(clifford_list):
                 for pauli_comb in pauli_comb_list:
                     circuits_list[idx_c]['emc'][pauli_comb].pauli(pauli_comb[pauli_idx], [qubit_idx])
  
-                clifford_to_add = create_clifford(gate_c)
+                clifford_to_add = create_clifford(clifford_comb[clifford_idx])
                 circuits_list[idx_c]['efc'] = circuits_list[idx_c]['efc'].compose(clifford_to_add, [qubit_idx])
                 for pauli_comb in pauli_comb_list:
                     circuits_list[idx_c]['emc'][pauli_comb] = circuits_list[idx_c]['emc'][pauli_comb].compose(clifford_to_add, [qubit_idx])
  
             pauli_idx = pauli_idx + 1
- 
+            clifford_idx = clifford_idx + 1
         else:
             for idx_c, gate_c in enumerate(clifford_list):
                 circuits_list[idx_c]['efc'].data.append(args)
