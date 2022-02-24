@@ -1,12 +1,11 @@
 import qiskit
 import numpy as np
 from qiskit import QuantumCircuit
-from qiskit.providers.aer.noise import NoiseModel
-import qiskit.providers.aer.noise as noise
 
 def get_measuring_circuit(basis_list: list) -> QuantumCircuit:
     qc = QuantumCircuit(len(basis_list[0][1]))
 
+    # Find a pauli word that has the most single qubit rotations
     basis = ''
     for qi in range(len(basis_list[0][1])):
         nonI = False
@@ -14,9 +13,11 @@ def get_measuring_circuit(basis_list: list) -> QuantumCircuit:
             if term[1][qi] != 'I':
                 nonI = True
                 basis += term[1][qi]
+                break
         if not nonI:
             basis += 'I'
-
+    
+    # Construct the appropriate circuit
     for i,term in enumerate(basis):
         if term == 'X':
             qc.h(i)
@@ -26,31 +27,53 @@ def get_measuring_circuit(basis_list: list) -> QuantumCircuit:
             continue
     return qc
 
-def expval_calc(hamiltonian, circuits_to_run):
+def pauli_expval(pauliwords: list, circuit: QuantumCircuit, qinstance: qiskit.utils.QuantumInstance, included_measuring_circuit = True) -> list:
+
+    # If the basis rotation is not included, add appropriate rotations. All pauliwords should be commuting.
+    if not included_measuring_circuit:
+        templist = []
+        for pauliword in pauliwords:
+            templist.append((1, pauliword))
+        measuring_circuit = get_measuring_circuit(templist)
+        circuit = circuit.compose(measuring_circuit)
+        if not qinstance.is_statevector:
+            circuit.measure_all()
+
+    # Run the ciruit!
+    res = qinstance.execute(circuit)
+    if qinstance.is_statevector:
+        sv = res.get_statevector()
+        pseudoprobs = sv.probabilities_dict()
+    else:
+        pseudoprobs = res.get_counts()
+
+    # Calculate the expectation value of each observable
+    expvals = []
+    for pauliword in pauliwords:
+        if not qinstance.is_statevector:
+            total_counts = 0
+        expval = 0
+        for basis in pseudoprobs:
+            if not qinstance.is_statevector:
+                total_counts += pseudoprobs[basis]
+            eigenvalue = 1
+            for qubit, pauli in zip(basis[::-1], pauliword):
+                if pauli != 'I' and qubit == '0':
+                    eigenvalue = eigenvalue * 1
+                if pauli != 'I' and qubit == '1':
+                    eigenvalue = eigenvalue * (-1)
+            expval += eigenvalue * pseudoprobs[basis]
+        if not qinstance.is_statevector:
+            expval = expval / total_counts
+        expvals.append(expval)
+    return expvals
+
+
+def expval_calc(hamiltonian: list, circuits_to_run, em_instance: qiskit.utils.QuantumInstance, ef_instance: qiskit.utils.QuantumInstance):
+
     # Dictionaries to store com_ef and com_em results
     com_ef = {}
     com_em = {}
-
-    # Quantum instances for error-free (ef) and noisy (em) experiments
-    # Can be changed depending on experiment details ----------------------------------------------------------------#
-    # Build noise model: Error probabilities
-    prob_1 = 0.001  # 1-qubit gate
-    prob_2 = 0.01   # 2-qubit gate
-
-    # Depolarizing quantum errors
-    error_1 = noise.depolarizing_error(prob_1, 1)
-    error_2 = noise.depolarizing_error(prob_2, 2)
-
-    # Add errors to noise model
-    noise_model = noise.NoiseModel()
-    noise_model.add_all_qubit_quantum_error(error_1, ['u1', 'u2', 'u3'])
-    noise_model.add_all_qubit_quantum_error(error_2, ['cx'])
-
-    qasm_simulator = qiskit.Aer.get_backend('qasm_simulator')
-    em_instance = qiskit.utils.QuantumInstance(backend = qasm_simulator, noise_model = noise_model, shots = 10000)
-    aer_simulator = qiskit.Aer.get_backend('aer_simulator_statevector')
-    ef_instance = qiskit.utils.QuantumInstance(backend = aer_simulator)
-    # ---------------------------------------------------------------------------------------------------------------#
     
     # Calculate all com values
     for commuting_operators in hamiltonian:
@@ -59,62 +82,47 @@ def expval_calc(hamiltonian, circuits_to_run):
         measurement_circuit = get_measuring_circuit(commuting_operators)
 
         for efcnum, efc_emcs in enumerate(circuits_to_run):
-            efc = efc_emcs['EFA']
-            emcs = efc_emcs['EMA']
+            efc = efc_emcs['efc']
+            emcs = efc_emcs['emc']
 
             # Calculate all error free values
             # For each training circuit, add the measurement circuit and execute to find the statevector
             circuit_to_run = efc.compose(measurement_circuit)
-            res = ef_instance.execute(circuit_to_run)
-            sv = res.get_statevector()
-            probs = sv.probabilities_dict()
 
             # Calculate the expectation value of each commuting operator
+            pauliwords = []
             for coeff, pauliword in commuting_operators:
-                expval = 0
-                for basis in probs:
-                    eigenvalue = 1
-                    for qubit, pauli in zip(basis[::-1], pauliword):
-                        if pauli != 'I' and qubit == '0':
-                            eigenvalue = eigenvalue * 1
-                        if pauli != 'I' and qubit == '1':
-                            eigenvalue = eigenvalue * (-1)
-                    expval += eigenvalue * probs[basis]
+                pauliwords.append(pauliword)
+            expvals = pauli_expval(pauliwords, circuit_to_run, ef_instance)
 
-                # Save the result in com_ef
+            # Save the result in com_ef
+            for pauliword, expval in zip(pauliwords, expvals):
                 com_ef[(pauliword, efcnum)] = expval
 
             # Calculate all noisy values
             # For each error mitigation circuit, add the measurement circuit and execute to find the shots
             for p in emcs:
-                circuit_to_run = emcs[p].compose(measurement_circuit)
+                emc = emcs[p]
+                circuit_to_run = emc.compose(measurement_circuit)
                 circuit_to_run.measure_all()
-                res = em_instance.execute(circuit_to_run)
-                counts = res.get_counts()
 
                 # Calculate the expectation value of each commuting operator
-                for coeff, pauliword in commuting_operators:
-                    expval = 0
-                    total_counts = 0
-                    for basis in counts:
-                        total_counts += counts[basis]
-                        eigenvalue = 1
-                        for qubit, pauli in zip(basis[::-1], pauliword):
-                            if pauli != 'I' and qubit == '0':
-                                eigenvalue = eigenvalue * 1
-                            if pauli != 'I' and qubit == '1':
-                                eigenvalue = eigenvalue * (-1)
-                        expval += eigenvalue * counts[basis]
-                    expval = expval / total_counts
+                expvals = pauli_expval(pauliwords, circuit_to_run, em_instance)
 
-                    # Save the result in com_em
+                # Save the result in com_em
+                for pauliword, expval in zip(pauliwords, expvals):
                     com_em[(pauliword, efcnum, p)] = expval
     return com_ef, com_em
 
-def q_optimize(hamiltonian, circuits_to_run, com_em, com_ef):
+def q_optimize(hamiltonian: list, circuits_to_run, com_em: dict, com_ef: dict):
+
     # Calculate 'a' matrix and 'b' vector
     # Extend the definitions to include a constant q_0 term. a is 5 x 5 because of 4 paulis + q0 term
-    extendedP = ['I', 'X', 'Y', 'Z', 'q0']
+    extendedP = []
+    for p in circuits_to_run[0]['emc']:
+        extendedP.append(p)
+    extendedP.append('q0')
+
     pauliwords = []
     for commuting_operators in hamiltonian:
         for coeff, pauliword in commuting_operators:
@@ -145,4 +153,4 @@ def q_optimize(hamiltonian, circuits_to_run, com_em, com_ef):
 
     # Optimize and find q vector
     q = np.dot(np.linalg.inv(a), b)
-    return q
+    return q, extendedP
