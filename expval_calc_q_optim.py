@@ -68,6 +68,20 @@ def pauli_expval(pauliwords: list, circuit: QuantumCircuit, qinstance: qiskit.ut
         expvals.append(expval)
     return expvals
 
+def expval_from_counts(pauliword, counts):
+    expval = 0
+    total_counts = 0
+    for basis in counts:
+        eigenvalue = 1
+        total_counts += counts[basis]
+        for qubit, pauli in zip(basis[::-1], pauliword):
+            if pauli != 'I' and qubit == '0':
+                eigenvalue = eigenvalue * 1
+            if pauli != 'I' and qubit == '1':
+                eigenvalue = eigenvalue * (-1)
+        expval += eigenvalue * counts[basis]
+    expval = expval / total_counts
+    return expval
 
 def expval_calc(hamiltonian: list, circuits_to_run, em_instance: qiskit.utils.QuantumInstance, ef_instance: qiskit.utils.QuantumInstance):
 
@@ -75,8 +89,12 @@ def expval_calc(hamiltonian: list, circuits_to_run, em_instance: qiskit.utils.Qu
     com_ef = {}
     com_em = {}
     
+    # List of all error mitigation circuits (circuits to run on noisy simulator/hardware)
+    tot_em_list = []
+    batchsize = 64
+
     # Calculate all com values
-    for commuting_operators in hamiltonian:
+    for coi, commuting_operators in enumerate(hamiltonian):
 
         # Get measurement part of the circuit. This is the same for all commuting operators
         measurement_circuit = get_measuring_circuit(commuting_operators)
@@ -99,19 +117,31 @@ def expval_calc(hamiltonian: list, circuits_to_run, em_instance: qiskit.utils.Qu
             for pauliword, expval in zip(pauliwords, expvals):
                 com_ef[(pauliword, efcnum)] = expval
 
-            # Calculate all noisy values
-            # For each error mitigation circuit, add the measurement circuit and execute to find the shots
+            # For each error mitigation circuit, add the measurement circuit
             for p in emcs:
                 emc = emcs[p]
                 circuit_to_run = emc.compose(measurement_circuit)
                 circuit_to_run.measure_all()
+                descriptor = (coi, efcnum, p)
+                tot_em_list.append((descriptor, circuit_to_run))
+    
+    # Divide the total error mitigated circuits into batches and run them.
+    batched_list = [tot_em_list[i:i + batchsize] for i in range(0, len(tot_em_list), batchsize)]
+    tot_em_counts = []
+    for batch in batched_list:
+        batch_only_circuits = [i[1] for i in batch]
+        res = em_instance.execute(batch_only_circuits)
+        counts = res.get_counts()
+        for i in range(batchsize):
+            tot_em_counts.append((batch[i][0], counts[i]))
+    
+    # Calculate the noisy results and save to com_em
+    for descriptor, noisy_result in tot_em_counts:
+        coi, efcnum, p = descriptor
+        commuting_operators = hamiltonian[coi]
+        for coef, pauliword in commuting_operators:
+            com_em[(pauliword, efcnum, p)] = expval_from_counts(pauliword, noisy_result)
 
-                # Calculate the expectation value of each commuting operator
-                expvals = pauli_expval(pauliwords, circuit_to_run, em_instance)
-
-                # Save the result in com_em
-                for pauliword, expval in zip(pauliwords, expvals):
-                    com_em[(pauliword, efcnum, p)] = expval
     return com_ef, com_em
 
 def q_optimize(hamiltonian: list, circuits_to_run, com_em: dict, com_ef: dict):
@@ -154,3 +184,45 @@ def q_optimize(hamiltonian: list, circuits_to_run, com_em: dict, com_ef: dict):
     # Optimize and find q vector
     q = np.dot(np.linalg.inv(a), b)
     return q, extendedP
+
+def test(ansatz, angles, hamiltonian, q, ef_instance, em_instance):
+    boundansatz = ansatz.bind_parameters(angles)
+
+    ef_expval = 0
+    em_expval = 0
+    n_expval = 0
+
+    noisy_hardware_circuits = []
+
+    for coi, commuting_operators in enumerate(hamiltonian):
+        for coef, pauliword in commuting_operators:
+            ef_expval += coef * pauli_expval([pauliword], boundansatz, ef_instance, included_measuring_circuit = False)[0]
+        measurement_circuit = get_measuring_circuit(commuting_operators)
+        noisy = boundansatz.compose(measurement_circuit)
+        noisy.measure_all()
+        noisy_hardware_circuits.append((('noisy', coi), noisy))
+        for p in q[1]:
+            if p != 'q0':
+                pauli_inserted = insert_pauli(ansatz, p)
+                pauli_inserted = pauli_inserted.bind_parameters(angles)
+                pauli_inserted.measure_all()
+                noisy_hardware_circuits.append(((p, coi), pauli_inserted))
+    
+    circuits_only = []
+    for descriptor, qc in noisy_hardware_circuits:
+        circuits_only.append(qc)
+    res = em_instance.execute(circuits_only)
+    counts_list = res.get_counts()
+
+    for (descriptor, qc), counts in zip(noisy_hardware_circuits, counts_list):
+        description, coi = descriptor
+        commuting_operators = hamiltonian[coi]
+        if description == 'noisy':
+            for coef, pauliword in commuting_operators:
+                n_expval += coef * expval_from_counts(pauliword, counts)
+        else:
+            for coef, pauliword in commuting_operators:
+                em_expval += coef * q[0][q[1].index(description)] * expval_from_counts(pauliword, counts)
+
+    em_expval += q[0][-1]
+    return ef_expval, em_expval, n_expval
