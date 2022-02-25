@@ -1,9 +1,8 @@
 
-import matplotlib.pyplot as plt
-import numpy as np
 from pyrsistent import m
 import qiskit
 import math
+import numpy as np
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -187,14 +186,20 @@ def n_qubit_A_circuit(n,m, repeat = 1):
 
 
 
-def main():
+def main(molecule_name: str ,distance: float ,n: int , m: int , ansatz: str) :
     
-    molecule_name = 'LiH'
-    distance = 1.4
+    """
+    n(int): number of orbitals
+    m(int): number of particles
+    distance(int): interatomic distance
+    ansatz(str): value should be 'simple' or 'num_particle_preserving'
+    """
+    
+
     qubit_ham = calculate_pauli_hamiltonian(molecule_name, distance)['qubit_operator']
     optimized = optimize_measurements( [list(term[1]) for term in qubit_ham] )
     group_pauli_op = grouping(optimized,qubit_ham)
-    ansatz, num_par_gates = get_ansatz(6,2,'num_particle_preserving')
+    ansatz, num_par_gates = get_ansatz(n,m,ansatz)
 
 
 
