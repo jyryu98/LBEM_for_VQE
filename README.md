@@ -14,3 +14,17 @@ We have implemented LBEM for running H_2 and LiH ansatze on noisy hardware and s
 ### Presentation: 
 [Presentation Slides](https://docs.google.com/presentation/d/1APkuSyKE1_9k7hti1yeiNjLVo_kmxJ_YFD8aDVKGvWw/edit?usp=sharing)
 
+### Source Codes Included:
+expval_calc_q_optim.py : 
+  - caculates expectation values
+  - finds optimum quasiprobability distribution
+
+generate_training_set.py :
+  - generates training and error-mitigated circuits for learning
+
+truncation_accumulated.py :
+  - analyzes performance of LBEM on truncated train set
+
+util.py :
+  - generates Pauli Hamiltonian of molecule
+  - runs VQE and plots the resulting PES curve
