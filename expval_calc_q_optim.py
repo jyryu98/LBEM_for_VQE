@@ -264,7 +264,7 @@ def em_expval_calc(ansatz, angles, hamiltonian, q, em_instance):
     em_expval += q[0][-1]
     return em_expval
 
-def n_expval_calc(ansatz, angles, hamiltonian, q, em_instance):
+def n_expval_calc(ansatz, angles, hamiltonian, em_instance):
     boundansatz = ansatz.bind_parameters(angles)
 
     n_expval = 0
