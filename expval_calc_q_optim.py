@@ -264,6 +264,33 @@ def em_expval_calc(ansatz, angles, hamiltonian, q, em_instance):
     em_expval += q[0][-1]
     return em_expval
 
+def n_expval_calc(ansatz, angles, hamiltonian, q, em_instance):
+    boundansatz = ansatz.bind_parameters(angles)
+
+    n_expval = 0
+
+    noisy_hardware_circuits = []
+
+    for coi, commuting_operators in enumerate(hamiltonian):
+        measurement_circuit = get_measuring_circuit(commuting_operators)
+        noisy = boundansatz.compose(measurement_circuit)
+        noisy.measure_all()
+        noisy_hardware_circuits.append((('noisy', coi), noisy))
+    
+    circuits_only = []
+    for descriptor, qc in noisy_hardware_circuits:
+        circuits_only.append(qc)
+    res = em_instance.execute(circuits_only)
+    counts_list = res.get_counts()
+
+    for (descriptor, qc), counts in zip(noisy_hardware_circuits, counts_list):
+        description, coi = descriptor
+        commuting_operators = hamiltonian[coi]
+        for coef, pauliword in commuting_operators:
+            n_expval += coef * expval_from_counts(pauliword, counts)
+
+    return n_expval
+
 def truncate_training_set(num_param_gates, num_trunc_P, num_trunc_T, s = 10, exhaustive = False):
     seed(s)
     paulis = ['I', 'X', 'Y', 'Z']
