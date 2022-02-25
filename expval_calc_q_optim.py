@@ -1,3 +1,4 @@
+from math import prod
 import qiskit
 import numpy as np
 from generate_training_set import insert_pauli
@@ -230,26 +231,66 @@ def test(ansatz, angles, hamiltonian, q, ef_instance, em_instance):
     em_expval += q[0][-1]
     return ef_expval, em_expval, n_expval
 
-def truncate_training_set(num_param_gates, num_trunc_P, num_trunc_T, s = 10):
+def em_expval(ansatz, angles, hamiltonian, q, em_instance):
+    boundansatz = ansatz.bind_parameters(angles)
+    em_expval = 0
+
+    noisy_hardware_circuits = []
+
+    for coi, commuting_operators in enumerate(hamiltonian):
+        measurement_circuit = get_measuring_circuit(commuting_operators)
+        noisy = boundansatz.compose(measurement_circuit)
+        noisy.measure_all()
+        for p in q[1]:
+            if p != 'q0':
+                pauli_inserted = insert_pauli(ansatz, p)
+                pauli_inserted = pauli_inserted.bind_parameters(angles)
+                pauli_inserted.measure_all()
+                noisy_hardware_circuits.append(((p, coi), pauli_inserted))
+    
+    circuits_only = []
+    for descriptor, qc in noisy_hardware_circuits:
+        circuits_only.append(qc)
+    res = em_instance.execute(circuits_only)
+    counts_list = res.get_counts()
+
+    for (descriptor, qc), counts in zip(noisy_hardware_circuits, counts_list):
+        description, coi = descriptor
+        commuting_operators = hamiltonian[coi]
+        for coef, pauliword in commuting_operators:
+            em_expval += coef * q[0][q[1].index(description)] * expval_from_counts(pauliword, counts)
+
+    em_expval += q[0][-1]
+    return em_expval
+
+def truncate_training_set(num_param_gates, num_trunc_P, num_trunc_T, s = 10, exhaustive = False):
     seed(s)
     paulis = ['I', 'X', 'Y', 'Z']
     cliffords = ['I','X','Y','Z','S','XS','YS','ZS','H','XH','YH','ZH','SH','XSH','YSH','ZSH','HS','XHS','YHS','ZHS','SHS','XSHS','YSHS','ZSHS']
 
-    trunc_T = []
-    while len(trunc_T) < num_trunc_T:
-        temp = []
-        for j in range(num_param_gates):
-            temp.append(sample(cliffords, 1)[0])
-        if not temp in trunc_T:
-            trunc_T.append(temp)
+    if not exhaustive:
+        trunc_T = []
+        while len(trunc_T) < num_trunc_T:
+            temp = []
+            for j in range(num_param_gates):
+                temp.append(sample(cliffords, 1)[0])
+            if not temp in trunc_T:
+                trunc_T.append(temp)
 
-    trunc_P = []
-    while len(trunc_P) < num_trunc_P:
-        temp = []
-        for j in range(num_param_gates):
-            temp.append(sample(paulis, 1)[0])
-        temp = ''.join(temp)
-        if not temp in trunc_P:
-            trunc_P.append(temp)
+        trunc_P = []
+        while len(trunc_P) < num_trunc_P:
+            temp = []
+            for j in range(num_param_gates):
+                temp.append(sample(paulis, 1)[0])
+            temp = ''.join(temp)
+            if not temp in trunc_P:
+                trunc_P.append(temp)
+    
+    else:
+        trunc_T = list(product(cliffords, repeat = num_param_gates))
+        trunc_T = [list(i) for i in trunc_T]
+
+        trunc_P = list(product(paulis, repeat = num_param_gates))
+        trunc_P = [''.join(list(i)) for i in trunc_P]
 
     return trunc_T, trunc_P
