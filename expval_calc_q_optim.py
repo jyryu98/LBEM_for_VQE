@@ -230,8 +230,8 @@ def test(ansatz, angles, hamiltonian, q, ef_instance, em_instance):
     em_expval += q[0][-1]
     return ef_expval, em_expval, n_expval
 
-def truncate_training_set(num_param_gates, num_trunc_P, num_trunc_T, seed = 10):
-    seed(seed)
+def truncate_training_set(num_param_gates, num_trunc_P, num_trunc_T, s = 10):
+    seed(s)
     paulis = ['I', 'X', 'Y', 'Z']
     cliffords = ['I','X','Y','Z','S','XS','YS','ZS','H','XH','YH','ZH','SH','XSH','YSH','ZSH','HS','XHS','YHS','ZHS','SHS','XSHS','YSHS','ZSHS']
 
