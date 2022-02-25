@@ -1,7 +1,7 @@
 # LBEM_for_VQE
 Entry for QHack Hackathon 2022
 
-## Project Description: 
+### Project Description: 
 
 Variational Quantum Eigensolvers (VQE) for calculating ground state energies of molecules are one of the major applications of noisy intermediate scale quantum (NISQ) computers. However for VQE to be viable on NISQ computers, powerful error mitigation protocols are needed due to the high level of noise.
 
