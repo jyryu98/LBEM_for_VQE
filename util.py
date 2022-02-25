@@ -1,15 +1,20 @@
 
+from tempfile import tempdir
+from unittest import result
 from pyrsistent import m
 import qiskit
 import math
 import numpy as np
 
+import matplotlib as plt
+
 import warnings
 warnings.filterwarnings("ignore")
 
-from qiskit.chemistry.drivers import PySCFDriver, UnitsType
-#from qiskit_nature.drivers import PySCFDriver, UnitsType, Molecule
+
 from qiskit.chemistry import FermionicOperator
+
+from qiskit.chemistry.drivers import PySCFDriver, UnitsType
 from qiskit.aqua.operators import Z2Symmetries
 
 from qiskit.algorithms.optimizers import SLSQP,POWELL,SPSA,COBYLA
@@ -23,6 +28,7 @@ from qiskit import QuantumCircuit
 from qiskit.circuit import QuantumCircuit, Parameter
 
 from qiskit.circuit import ParameterVector, QuantumCircuit
+from expval_calc_q_optim import *
 
 
 
@@ -84,7 +90,7 @@ def calculate_pauli_hamiltonian(molecule_name, distance ,map_type = 'parity'):
             continue
         qubit_ham.append((coeff,pauli.to_label()))
 
-    result = {'qubit_operator': qubit_ham,'coeff_identity_pauli': identity_coeff , 'shift':nuclear_repulsion_energy + energy_shift,'num_particles': num_particles,'num_spin_orbitals':num_spin_orbitals }
+    result = {'qubit_operator': qubit_ham,'coeff_identity_pauli': identity_coeff , 'shift':nuclear_repulsion_energy + energy_shift,'num_particles': num_particles,'num_spin_orbitals':num_spin_orbitals,'hf_energy': molecule.hf_energy,'qub_op_with_I':qubitOp_t }
 
     return result
 
@@ -186,10 +192,6 @@ def n_qubit_A_circuit(n,m, repeat = 1):
 
 
 
-
-
-
-
 def main(molecule_name: str ,distance: float ,n: int , m: int , ansatz: str) :
     
     """
@@ -209,20 +211,67 @@ def main(molecule_name: str ,distance: float ,n: int , m: int , ansatz: str) :
 
     return pauli_ham_dict, [ansatz,num_par_gates]
 
+#def em_expval()
 
-def run_VQE(molecule_name,distance,n,m, q, em_instance, ansatz, optimizer):
 
 
-    qubit_ham, [ansatz,num_par_gates] = main(molecule_name,distance,n,m)
 
-    def cost_function(angle):
+
+
+def run_VQE(molecule_name,distance,n,m, q, em_instance, ef_instance, ansatz, optimizer):
+
+
+    qubit_ham, [ansatz,num_par_gates] = main(molecule_name,distance,n,m,ansatz)
+
+    def cost_function_em(angle):
         expval =  em_expval_calc(ansatz,angle,qubit_ham['grouped_paulis'],q, em_instance)
         return expval
+    def cost_function_ns(angle):
+        expval = n_expval_calc(ansatz,angle,qubit_ham['grouped_paulis'], em_instance)
+        return expval
+    def cost_function_ef(angle):
+        expval = ef_expval_calc(ansatz,angle,qubit_ham['grouped_paulis'], ef_instance)
+        return expval
+
     
-    optimized_val  = optimizer.optimize(num_vars = num_par_gates*2, objective_function = cost_function, initial_point = np.zeros(num_par_gates*2))
+    optimized_em  = optimizer.optimize(num_vars = ansatz.num_parameters, objective_function = cost_function_em, initial_point = np.zeros(ansatz.num_parameters))
+    optimized_ns = optimizer.optimize(num_vars = ansatz.num_parameters, objective_function = cost_function_ns, initial_point = np.zeros(ansatz.num_parameters))
+    optimized_ef = optimizer.optimize(num_vars = ansatz.num_parameters, objective_function = cost_function_ef, initial_point = np.zeros(ansatz.num_parameters))
 
-    vqe_energy = optimized_val + qubit_ham['coeff_identity_pauli'] + qubit_ham ['shift']
-    exact_energy = NumPyEigensolver(qubit_ham['qubit_operator']).run().eigenvalues + qubit_ham ['shift'] + qubit_ham['coeff_identity_pauli']
+
+    noisy_vqe_energy = optimized_ns[1] + qubit_ham['coeff_identity_pauli'] + qubit_ham ['shift']
+    vqe_energy = optimized_em[1] + qubit_ham['coeff_identity_pauli'] + qubit_ham ['shift']
+    ef_vqe_energy = optimized_ef[1] + qubit_ham['coeff_identity_pauli'] + qubit_ham ['shift']
+
+    exact_energy = NumPyEigensolver(qubit_ham['qub_op_with_I']).run().eigenvalues + qubit_ham ['shift'] 
     hf_energy = qubit_ham ['hf_energy']
+    #exact_energy = 0
 
-    return {'vqe_energy': vqe_energy, 'exact_energy': exact_energy, 'hf_energy': hf_energy}
+    return {'vqe_em_energy': vqe_energy, 'noisy_vqe_energy': noisy_vqe_energy, 'ef_vqe_energy': ef_vqe_energy ,'exact_energy': exact_energy, 'hf_energy': hf_energy}
+
+    
+def plot_PES(molecule_name: str,
+            distance_list,
+            n, m, q, 
+            em_instance, ef_instance, ansatz, optimizer, save_fig = False):
+
+    result = []
+    for distance in distance_list:
+        temp = run_VQE(molecule_name,distance,n,m, q, em_instance, ef_instance, ansatz, optimizer)
+        result.append(temp)
+    plt.plot(distance_list, result['exact_energy'], '-o', label="Exact Energy")
+    plt.plot(distance_list, result['vqe_em_energy'], '-k', label="VQE_EM Energy")
+    plt.plot(distance_list, result['noisy_vqe_energy '], '-k', label="noisey_VQE Energy")
+    plt.plot(distance_list, result['ef_vqe_energy'], '-k', label="EF_VQE Energy")
+
+    plt.plot(distance_list, result['hf_energy'],'-o' , label="HF Energy")
+    plt.title(molecule_name + "'s PES curve ")
+    plt.xlabel('Atomic distance (Angstrom)')
+    plt.ylabel('Energy(Hartree)')
+    plt.legend()
+    plt.show()
+
+    if save_fig:
+        plt.savefig("./{}PES curve with learning based error mitigation.png".format(molecule_name) )
+
+    
