@@ -97,28 +97,3 @@ def get_circuits_dict(qc, clifford_list=[], pauli_comb_list=[], num_parameterize
                     circuits_list[idx_c]['emc'][pauli_comb].data.append(args)
 
     return circuits_list
-
-def get_circuit_list(qc):
-    circuits_list = []
-
-    for _ in range(len(clifford_list)):
-        ef_em_set = []
-        for _ in range(5):
-            ef_em_set.append(QuantumCircuit(qc.width()))
-        circuits_list.append(ef_em_set)
- 
-    for args in qc.data:
-        if args[0].is_parameterized():
-            qubit_idx = args[1][0].index
-            for idx_c, gate_c in enumerate(clifford_list):
-                for idx_p, gate_p in enumerate(pauli_list):
-                    circuits_list[idx_c][idx_p+1].pauli(gate_p, [qubit_idx])
-                for idx in range(5):
-                    circuits_list[idx_c][idx] = circuits_list[idx_c][idx].compose(create_clifford(gate_c), [qubit_idx])
- 
-        else:
-            for idx_c, gate_c in enumerate(clifford_list):
-                for i in range(5):
-                    circuits_list[idx_c][i].data.append(args)
-
-    return circuits_list
