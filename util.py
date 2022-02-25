@@ -222,7 +222,7 @@ def run_VQE(molecule_name,distance,n,m, q, em_instance, ansatz, optimizer):
     optimized_val  = optimizer.optimize(num_vars = num_par_gates*2, objective_function = cost_function, initial_point = np.zeros(num_par_gates*2))
 
     vqe_energy = optimized_val + qubit_ham['coeff_identity_pauli'] + qubit_ham ['shift']
-    exact_energy = NumPyEigensolver(qubit_ham['qubit_operator']).run().eigenvalues + qubit_ham ['shift']
+    exact_energy = NumPyEigensolver(qubit_ham['qubit_operator']).run().eigenvalues + qubit_ham ['shift'] + qubit_ham['coeff_identity_pauli']
     hf_energy = qubit_ham ['hf_energy']
 
     return {'vqe_energy': vqe_energy, 'exact_energy': exact_energy, 'hf_energy': hf_energy}
