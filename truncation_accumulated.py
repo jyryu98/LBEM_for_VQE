@@ -7,7 +7,7 @@ import qiskit.providers.aer.noise as noise
 from qiskit import Aer
 
 def experiment(trunc_T, trunc_P, em_instance, ef_instance, angles):
-    group_pauli_op, [ansatz,num_par_gates] = main()
+    group_pauli_op, [ansatz,num_par_gates] = main('LiH', 1.4, 6, 2, 'num_particle_preserving')
     group_pauli_op = group_pauli_op['grouped_paulis']
     print('Ansatz & qubit hamiltonian created')
     circuit_list = get_circuits_dict(ansatz, trunc_T, trunc_P, num_par_gates)
