@@ -47,7 +47,7 @@ efs = []
 ems = []
 ns = []
 
-roup_pauli_op, [ansatz,num_par_gates] = main()
+group_pauli_op, [ansatz,num_par_gates] = main('LiH', 1.4, 6, 2, 'num_particle_preserving')
 total_trunc_T, total_trunc_P = truncate_training_set(num_par_gates, P[-1], 3*P[-1], s = seed)
 
 filename = './truncation_experiment.txt'
