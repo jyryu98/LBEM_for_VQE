@@ -291,6 +291,17 @@ def n_expval_calc(ansatz, angles, hamiltonian, em_instance):
 
     return n_expval
 
+def ef_expval_calc(ansatz, angles, hamiltonian, q, ef_instance):
+    boundansatz = ansatz.bind_parameters(angles)
+
+    ef_expval = 0
+
+    for coi, commuting_operators in enumerate(hamiltonian):
+        for coef, pauliword in commuting_operators:
+            ef_expval += coef * pauli_expval([pauliword], boundansatz, ef_instance, included_measuring_circuit = False)[0]
+
+    return ef_expval
+
 def truncate_training_set(num_param_gates, num_trunc_P, num_trunc_T, s = 10, exhaustive = False):
     seed(s)
     paulis = ['I', 'X', 'Y', 'Z']
