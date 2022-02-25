@@ -186,6 +186,10 @@ def n_qubit_A_circuit(n,m, repeat = 1):
 
 
 
+
+
+
+
 def main(molecule_name: str ,distance: float ,n: int , m: int , ansatz: str) :
     
     """
@@ -195,13 +199,30 @@ def main(molecule_name: str ,distance: float ,n: int , m: int , ansatz: str) :
     ansatz(str): value should be 'simple' or 'num_particle_preserving'
     """
     
-
-    qubit_ham = calculate_pauli_hamiltonian(molecule_name, distance)['qubit_operator']
+    pauli_ham_dict = calculate_pauli_hamiltonian(molecule_name, distance)
+    qubit_ham = pauli_ham_dict['qubit_operator']
     optimized = optimize_measurements( [list(term[1]) for term in qubit_ham] )
     group_pauli_op = grouping(optimized,qubit_ham)
     ansatz, num_par_gates = get_ansatz(n,m,ansatz)
+    pauli_ham_dict['grouped_paulis'] =group_pauli_op
 
 
+    return pauli_ham_dict, [ansatz,num_par_gates]
 
-    return group_pauli_op, [ansatz,num_par_gates]
 
+def run_VQE(molecule_name,distance,n,m, q, em_instance, ansatz, optimizer):
+
+
+    qubit_ham, [ansatz,num_par_gates] = main(molecule_name,distance,n,m)
+
+    def cost_function(angle):
+        expval =  em_expval_calc(ansatz,angle,qubit_ham['grouped_paulis'],q, em_instance)
+        return expval
+    
+    optimized_val  = optimizer.optimize(num_vars = num_par_gates*2, objective_function = cost_function, initial_point = np.zeros(num_par_gates*2))
+
+    vqe_energy = optimized_val + qubit_ham['coeff_identity_pauli'] + qubit_ham ['shift']
+    exact_energy = NumPyEigensolver(qubit_ham['qubit_operator']).run().eigenvalues + qubit_ham ['shift']
+    hf_energy = qubit_ham ['hf_energy']
+
+    return {'vqe_energy': vqe_energy, 'exact_energy': exact_energy, 'hf_energy': hf_energy}
