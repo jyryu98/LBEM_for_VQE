@@ -47,7 +47,7 @@ ems = []
 ns = []
 
 roup_pauli_op, [ansatz,num_par_gates] = main()
-total_trunc_T, total_trunc_P = truncate_training_set(num_par_gates, P[-1], 3*P[-1], seed = seed)
+total_trunc_T, total_trunc_P = truncate_training_set(num_par_gates, P[-1], 3*P[-1], s = seed)
 
 filename = './experiment_.txt'
 for p in P:
