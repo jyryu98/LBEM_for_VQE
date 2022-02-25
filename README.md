@@ -28,3 +28,5 @@ truncation_accumulated.py :
 util.py :
   - generates Pauli Hamiltonian of molecule
   - runs VQE and plots the resulting PES curve
+
+![alt text](https://github.com/jyryu98/LBEM_for_VQE/blob/h2_v1/lbem_diagram.png)
