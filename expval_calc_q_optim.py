@@ -233,19 +233,17 @@ def test(ansatz, angles, hamiltonian, q, ef_instance, em_instance):
     return ef_expval, em_expval, n_expval
 
 def em_expval_calc(ansatz, angles, hamiltonian, q, em_instance):
-    boundansatz = ansatz.bind_parameters(angles)
     em_expval = 0
 
     noisy_hardware_circuits = []
 
     for coi, commuting_operators in enumerate(hamiltonian):
         measurement_circuit = get_measuring_circuit(commuting_operators)
-        noisy = boundansatz.compose(measurement_circuit)
-        noisy.measure_all()
         for p in q[1]:
             if p != 'q0':
                 pauli_inserted = insert_pauli(ansatz, p)
                 pauli_inserted = pauli_inserted.bind_parameters(angles)
+                pauli_inserted = pauli_inserted.compose(measurement_circuit)
                 pauli_inserted.measure_all()
                 noisy_hardware_circuits.append(((p, coi), pauli_inserted))
     
